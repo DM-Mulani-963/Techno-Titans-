@@ -12,7 +12,7 @@ symptoms = [
 
 # List of diseases (this should be expanded based on your dataset)
 diseases = [
-    'COVID-19', 'Common Cold', 'Flu', 'Pneumonia', 'Bronchitis'
+     'Common Cold', 'Flu', 'Pneumonia', 'Bronchitis'
 ]
 
 class DiseasePredictor:
