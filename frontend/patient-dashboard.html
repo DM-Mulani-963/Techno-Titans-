@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Patient Dashboard - Healthcare System</title>
+    <link rel="stylesheet" href="css/main.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="container nav-container">
+            <a href="index.html" class="nav-logo">Healthcare System</a>
+            <div class="nav-links">
+                <a href="#appointments" class="nav-link">My Appointments</a>
+                <a href="#records" class="nav-link">Medical Records</a>
+                <a href="#predict" class="nav-link">Disease Prediction</a>
+                <button id="logoutBtn" class="btn btn-danger">Logout</button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container" style="margin-top: 80px;">
+        <!-- Welcome Section -->
+        <div class="card fade-in">
+            <h1 class="card-title">Welcome, <span id="patientName">Patient</span></h1>
+            <p>Manage your appointments and medical records from this dashboard.</p>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="grid grid-3 mt-4">
+            <div class="card">
+                <h2 class="card-title">Book Appointment</h2>
+                <p>Schedule a consultation with our doctors.</p>
+                <button id="bookAppointmentBtn" class="btn btn-primary mt-2">Book Now</button>
+            </div>
+            <div class="card">
+                <h2 class="card-title">Upload Records</h2>
+                <p>Upload your medical reports and prescriptions.</p>
+                <button id="uploadRecordBtn" class="btn btn-secondary mt-2">Upload</button>
+            </div>
+            <div class="card">
+                <h2 class="card-title">Check Symptoms</h2>
+                <p>Use our AI to predict possible conditions.</p>
+                <button id="checkSymptomsBtn" class="btn btn-primary mt-2">Check Now</button>
+            </div>
+        </div>
+
+        <!-- Appointments Section -->
+        <section id="appointments" class="mt-4">
+            <h2 class="card-title">My Appointments</h2>
+            <div class="grid grid-2" id="appointmentsList">
+                <!-- Appointments will be loaded here -->
+                <div class="card text-center">
+                    <p>Loading appointments...</p>
+                    <div class="spinner"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Medical Records Section -->
+        <section id="records" class="mt-4">
+            <h2 class="card-title">Medical Records</h2>
+            <div class="grid grid-2" id="recordsList">
+                <!-- Records will be loaded here -->
+                <div class="card text-center">
+                    <p>Loading records...</p>
+                    <div class="spinner"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Disease Prediction Section -->
+        <section id="predict" class="mt-4">
+            <div class="card">
+                <h2 class="card-title">Disease Prediction</h2>
+                <form id="symptomForm">
+                    <div class="form-group">
+                        <label class="form-label">Select Symptoms (Multiple)</label>
+                        <select id="symptoms" class="form-input" multiple size="5">
+                            <!-- Symptoms will be loaded here -->
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Predict Disease</button>
+                </form>
+                <div id="predictionResult" class="mt-3" style="display: none;">
+                    <h3>Prediction Results:</h3>
+                    <div id="predictionContent"></div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- Appointment Booking Modal -->
+    <div id="appointmentModal" class="modal" style="display: none;">
+        <div class="modal-content card">
+            <h2 class="card-title">Book Appointment</h2>
+            <form id="appointmentForm">
+                <div class="form-group">
+                    <label for="doctor" class="form-label">Select Doctor</label>
+                    <select id="doctor" class="form-input" required></select>
+                </div>
+                <div class="form-group">
+                    <label for="date" class="form-label">Preferred Date</label>
+                    <input type="date" id="date" class="form-input" required>
+                </div>
+                <div class="form-group">
+                    <label for="time" class="form-label">Preferred Time</label>
+                    <select id="time" class="form-input" required>
+                        <option value="09:00">9:00 AM</option>
+                        <option value="10:00">10:00 AM</option>
+                        <option value="11:00">11:00 AM</option>
+                        <option value="14:00">2:00 PM</option>
+                        <option value="15:00">3:00 PM</option>
+                        <option value="16:00">4:00 PM</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="reason" class="form-label">Reason for Visit</label>
+                    <textarea id="reason" class="form-input" required></textarea>
+                </div>
+                <button type="submit" class="btn btn-primary">Book Appointment</button>
+                <button type="button" class="btn btn-danger mt-2" onclick="closeModal('appointmentModal')">Cancel</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Firebase Scripts -->
+    <script type="module">
+        import { auth, db } from './js/firebase-config.js';
+        import { signOut } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
+        import { 
+            collection, 
+            query, 
+            where, 
+            getDocs,
+            addDoc,
+            orderBy 
+        } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+
+        // Check authentication
+        auth.onAuthStateChanged(async (user) => {
+            if (!user) {
+                window.location.href = 'login.html';
+                return;
+            }
+
+            // Load user data
+            const userDoc = await getDocs(query(collection(db, 'users'), where('email', '==', user.email)));
+            if (!userDoc.empty) {
+                const userData = userDoc.docs[0].data();
+                document.getElementById('patientName').textContent = userData.name;
+            }
+
+            // Load appointments
+            loadAppointments(user.email);
+
+            // Load medical records
+            loadMedicalRecords(user.email);
+
+            // Load symptoms for prediction
+            loadSymptoms();
+        });
+
+        // Logout functionality
+        document.getElementById('logoutBtn').addEventListener('click', async () => {
+            try {
+                await signOut(auth);
+                window.location.href = 'login.html';
+            } catch (error) {
+                console.error('Error signing out:', error);
+            }
+        });
+
+        // Load appointments
+        async function loadAppointments(userEmail) {
+            const appointmentsList = document.getElementById('appointmentsList');
+            try {
+                const appointmentsQuery = query(
+                    collection(db, 'appointments'),
+                    where('patientEmail', '==', userEmail),
+                    orderBy('date', 'desc')
+                );
+                const appointmentsSnapshot = await getDocs(appointmentsQuery);
+                
+                if (appointmentsSnapshot.empty) {
+                    appointmentsList.innerHTML = `
+                        <div class="card text-center">
+                            <p>No appointments found.</p>
+                            <button class="btn btn-primary mt-2" onclick="document.getElementById('bookAppointmentBtn').click()">
+                                Book Your First Appointment
+                            </button>
+                        </div>
+                    `;
+                    return;
+                }
+
+                appointmentsList.innerHTML = '';
+                appointmentsSnapshot.forEach(doc => {
+                    const appointment = doc.data();
+                    appointmentsList.innerHTML += `
+                        <div class="card">
+                            <h3 class="card-title">Appointment with Dr. ${appointment.doctorName}</h3>
+                            <p>Date: ${new Date(appointment.date).toLocaleDateString()}</p>
+                            <p>Time: ${appointment.time}</p>
+                            <p>Status: <span class="status-badge ${appointment.status.toLowerCase()}">${appointment.status}</span></p>
+                        </div>
+                    `;
+                });
+            } catch (error) {
+                console.error('Error loading appointments:', error);
+                appointmentsList.innerHTML = `
+                    <div class="card text-center">
+                        <p>Error loading appointments. Please try again later.</p>
+                    </div>
+                `;
+            }
+        }
+
+        // Load medical records
+        async function loadMedicalRecords(userEmail) {
+            const recordsList = document.getElementById('recordsList');
+            try {
+                const recordsQuery = query(
+                    collection(db, 'medical_records'),
+                    where('patientEmail', '==', userEmail),
+                    orderBy('date', 'desc')
+                );
+                const recordsSnapshot = await getDocs(recordsQuery);
+                
+                if (recordsSnapshot.empty) {
+                    recordsList.innerHTML = `
+                        <div class="card text-center">
+                            <p>No medical records found.</p>
+                            <button class="btn btn-secondary mt-2" onclick="document.getElementById('uploadRecordBtn').click()">
+                                Upload Your First Record
+                            </button>
+                        </div>
+                    `;
+                    return;
+                }
+
+                recordsList.innerHTML = '';
+                recordsSnapshot.forEach(doc => {
+                    const record = doc.data();
+                    recordsList.innerHTML += `
+                        <div class="card">
+                            <h3 class="card-title">${record.type}</h3>
+                            <p>Date: ${new Date(record.date).toLocaleDateString()}</p>
+                            <p>Doctor: Dr. ${record.doctorName}</p>
+                            <a href="${record.fileUrl}" class="btn btn-primary mt-2" target="_blank">View Record</a>
+                        </div>
+                    `;
+                });
+            } catch (error) {
+                console.error('Error loading medical records:', error);
+                recordsList.innerHTML = `
+                    <div class="card text-center">
+                        <p>Error loading medical records. Please try again later.</p>
+                    </div>
+                `;
+            }
+        }
+
+        // Load symptoms for prediction
+        function loadSymptoms() {
+            const symptomsSelect = document.getElementById('symptoms');
+            const commonSymptoms = [
+                'Fever', 'Cough', 'Fatigue', 'Difficulty Breathing', 'Headache',
+                'Body Aches', 'Sore Throat', 'Runny Nose', 'Nausea', 'Diarrhea'
+            ];
+            
+            symptomsSelect.innerHTML = commonSymptoms.map(symptom => 
+                `<option value="${symptom.toLowerCase()}">${symptom}</option>`
+            ).join('');
+        }
+
+        // Handle symptom form submission
+        document.getElementById('symptomForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const selectedSymptoms = Array.from(document.getElementById('symptoms').selectedOptions)
+                .map(option => option.value);
+            
+            if (selectedSymptoms.length === 0) {
+                alert('Please select at least one symptom');
+                return;
+            }
+
+            // Simple prediction logic (to be replaced with ML model)
+            const predictionResult = document.getElementById('predictionResult');
+            const predictionContent = document.getElementById('predictionContent');
+            
+            // Simulate API call to ML model
+            predictionContent.innerHTML = `
+                <div class="card">
+                    <p><strong>Based on your symptoms, you might have:</strong></p>
+                    <ul class="mt-2">
+                        <li>Common Cold (60% probability)</li>
+                        <li>Seasonal Allergies (30% probability)</li>
+                        <li>Flu (10% probability)</li>
+                    </ul>
+                    <p class="mt-2"><strong>Recommendation:</strong> Please consult a doctor for proper diagnosis.</p>
+                    <button class="btn btn-primary mt-2" onclick="document.getElementById('bookAppointmentBtn').click()">
+                        Book Appointment Now
+                    </button>
+                </div>
+            `;
+            predictionResult.style.display = 'block';
+        });
+
+        // Modal functions
+        window.closeModal = function(modalId) {
+            document.getElementById(modalId).style.display = 'none';
+        };
+
+        // Book appointment button
+        document.getElementById('bookAppointmentBtn').addEventListener('click', () => {
+            document.getElementById('appointmentModal').style.display = 'block';
+        });
+
+        // Handle appointment form submission
+        document.getElementById('appointmentForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = {
+                doctorId: document.getElementById('doctor').value,
+                date: document.getElementById('date').value,
+                time: document.getElementById('time').value,
+                reason: document.getElementById('reason').value,
+                patientEmail: auth.currentUser.email,
+                status: 'Pending',
+                createdAt: new Date().toISOString()
+            };
+
+            try {
+                await addDoc(collection(db, 'appointments'), formData);
+                alert('Appointment booked successfully!');
+                closeModal('appointmentModal');
+                loadAppointments(auth.currentUser.email);
+            } catch (error) {
+                console.error('Error booking appointment:', error);
+                alert('Error booking appointment. Please try again.');
+            }
+        });
+    </script>
+
+    <style>
+        /* Modal Styles */
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .modal-content {
+            background-color: white;
+            padding: 2rem;
+            border-radius: 10px;
+            width: 90%;
+            max-width: 500px;
+        }
+
+        /* Status Badge Styles */
+        .status-badge {
+            padding: 0.25rem 0.5rem;
+            border-radius: 9999px;
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+
+        .status-badge.pending {
+            background-color: #FEF3C7;
+            color: #92400E;
+        }
+
+        .status-badge.confirmed {
+            background-color: #D1FAE5;
+            color: #065F46;
+        }
+
+        .status-badge.cancelled {
+            background-color: #FEE2E2;
+            color: #991B1B;
+        }
+
+        /* Multiple Select Styles */
+        select[multiple] {
+            height: auto;
+            min-height: 120px;
+        }
+    </style>
+</body>
+</html> 
